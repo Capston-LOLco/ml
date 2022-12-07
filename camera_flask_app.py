@@ -15,57 +15,84 @@ neg=0
 face=0
 switch=1
 rec=0
-
-#카메라정보
-fx = 910.014
-fy = 913.830
-cx = 675.058
-cy = 284.985
-k1 = -0.392208
-k2 = 0.132114
-p1 = 0.002060
-p2 = -0.004569
-h = 197 #cm, 카메라 높이
-sexy = 3
-# 좌표 평면화?
 dot = [[434, 331], [152, 647], [698, 662], [763, 342], [598, 325]]
+def real_dot(dot):
+    fx = 910.014
+    fy = 913.830
+    cx = 675.058
+    cy = 284.985
+    k1 = -0.392208
+    k2 = 0.132114
+    p1 = 0.002060
+    p2 = -0.004569
+    h = 197
+    real_point = []
 
-real_point = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
+    for i in range(0, len(dot)):
+        u = (dot[i][0]-cx)/fx
+        v = (dot[i][1]-cy)/fy
 
-for i in range(0, 5):
-    u = (dot[i][0]-cx)/fx
-    v = (dot[i][1]-cy)/fy
+        CpPp = h * math.tan(math.pi/2 + 30 - math.atan(v))
+        CPp = math.sqrt(h**2 + CpPp**2)
+        Cpp = math.sqrt(1 + v**2)
+        PPp = u*CPp/Cpp
+        d = math.sqrt(CpPp**2 + PPp**2)
+        theta = -math.atan2(PPp, CpPp)
+        
+        p = [d*math.cos(theta), d*math.sin(theta)]
+        real_point.append(p)
+    return real_point
 
-    CpPp = h * math.tan(math.pi/2 + 30 - math.atan(v))
-    CPp = math.sqrt(h**2 + CpPp**2)
-    Cpp = math.sqrt(1 + v**2)
-    PPp = u*CPp/Cpp
-    d = math.sqrt(CpPp**2 + PPp**2)
-    theta = -math.atan2(PPp, CpPp)
+def is_inside(polygon, point):
+    def cross(p1, p2):
+        x1, y1 = p1
+        x2, y2 = p2
 
-    real_point[i][0] = d*math.cos(theta)
-    real_point[i][1] = d*math.sin(theta)
+        if y1 - y2 == 0:
+            if y1 == point[1]:
+                if min(x1, x2) <= point[0] <= max(x1, x2):
+                    return 1, True
+            return 0, False
+        if x1 - x2 == 0:
+            if min(y1, y2) <= point[1] <= max(y1, y2):
+                if point[0] <= max(x1, x2):
+                    return 1, point[0] == max(x1, x2)
+            return 0, False
+        a = (y1 - y2) /(x1 - x2)
+        b = y1 - x1 * a
+        x = (point[1] - b) / a
+        if point[0] <= x:
+            if min(y1, y2) <= point[1] <= max(y1, y2):
+                return 1, point[0] == x or point[1] in (y1, y2)
+        return 0, False
 
-real_length = math.sqrt((real_point[0][0]-real_point[1][0])**2+(real_point[0][1]-real_point[1][1])**2)
-dot_length = math.sqrt((dot[0][0]-dot[1][0])**2+(dot[0][1]-dot[1][1])**2)
-
+    cross_points = 0
+    for x in range(len(polygon)):
+        num, on_line = cross(polygon[x], polygon[x-1])
+        if on_line:
+            return True
+        cross_points += num
+    
+    return cross_points % 2
 
 def detect():
-    global d_x, d_y, radius, dot, sexy
+    global d_x, d_y, radius, dot, where
     camera = cv2.VideoCapture('rtsp://admin:good425425@192.168.0.198:554/stream_ch00_0')
 
     mp_drawing = mp.solutions.drawing_utils
     mp_drawing_styles = mp.solutions.drawing_styles
     mp_pose = mp.solutions.pose
     blue,red = (255,0,0),(0,0,255) 
-    
-    AB1 = ((real_point[0][0]-real_point[1][0])**2 + (real_point[0][1]-real_point[1][1])**2) **0.5
-    AB2 = ((real_point[1][0]-real_point[2][0])**2 + (real_point[1][1]-real_point[2][1])**2) **0.5
-    AB3 = ((real_point[2][0]-real_point[3][0])**2 + (real_point[2][1]-real_point[3][1])**2) **0.5
-    AB4 = ((real_point[3][0]-real_point[4][0])**2 + (real_point[3][1]-real_point[4][1])**2) **0.5
-    AB5 = ((real_point[4][0]-real_point[0][0])**2 + (real_point[4][1]-real_point[0][1])**2) **0.5
-    
-    count = 0
+    fx = 910.014
+    fy = 913.830
+    cx = 675.058
+    cy = 284.985
+    k1 = -0.392208
+    k2 = 0.132114
+    p1 = 0.002060
+    p2 = -0.004569
+    h = 197
+    where = 0
     with mp_pose.Pose(
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5) as pose:
@@ -106,17 +133,6 @@ def detect():
                     theta = -math.atan2(PPp, CpPp)
                     d_x = d*math.cos(theta)
                     d_y = d*math.sin(theta)
-
-                    u = (nosex-cx)/fx
-                    v = (nosey-cy)/fy
-                    CpPp = h * math.tan(math.pi/2 + 30 - math.atan(v))
-                    CPp = math.sqrt(h**2 + CpPp**2)
-                    Cpp = math.sqrt(1 + v**2)
-                    PPp = u*CPp/Cpp
-                    d = math.sqrt(CpPp**2 + PPp**2)
-                    theta = -math.atan2(PPp, CpPp)
-                    d_nx = d*math.cos(theta)
-                    d_ny = d*math.sin(theta)
                     
                     mp_drawing.draw_landmarks(
                         img,
@@ -124,45 +140,8 @@ def detect():
                         mp_pose.POSE_CONNECTIONS,
                         landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
 
-                    
-                    # radius = math.sqrt((mx-nosex)**2 + (my-nosey)**2)
-                    radius = 20
-                    print(sexy)
-                    if count == 0:
-                        area1 = abs((real_point[0][0]-d_x) * (real_point[1][1]-d_y) - (real_point[0][1]-d_y) * (real_point[1][0] - d_x))
-                        distance1 = area1/AB1
-                        count += 1
-                        if distance1 < radius:
-                            sexy = 1
-                        else: sexy = 0
-                    elif count == 1:
-                        area2 = abs((real_point[1][0]-d_x) * (real_point[2][1]-d_y) - (real_point[1][1]-d_y) * (real_point[2][0] - d_x))
-                        distance2 = area2/AB2
-                        count += 1
-                        if distance2 < radius:
-                            sexy = 1
-                        else: sexy = 0
-                    elif count == 2:
-                        area3 = abs((real_point[2][0]-d_x) * (real_point[3][1]-d_y) - (real_point[2][1]-d_y) * (real_point[3][0] - d_x))
-                        distance3 = area3/AB3
-                        count += 1
-                        if distance3 < radius:
-                            sexy = 1
-                        else: sexy = 0
-                    elif count == 3:
-                        area4 = abs((real_point[3][0]-d_x) * (real_point[4][1]-d_y) - (real_point[3][1]-d_y) * (real_point[4][0] - d_x))
-                        distance4 = area4/AB4
-                        count += 1
-                        if distance4 < radius:
-                            sexy = 1
-                        else: sexy = 0
-                    else:
-                        area5 = abs((real_point[4][0]-d_x) * (real_point[4][1]-d_y) - (real_point[4][1]-d_y) * (real_point[0][0] - d_x))
-                        distance5 = area5/AB5
-                        count = 0
-                        if distance5 < radius:
-                            sexy = 1
-                        else: sexy = 0
+                    if is_inside(real_dot, (d_x, d_y)) == 1: where = 0
+                    else: where = 1
                 if cv2.waitKey(20) & 0xFF == 27:
                     break
     camera.release()    
@@ -175,7 +154,7 @@ except OSError as error:
     pass
 
 #Load pretrained face detection model    
-net = cv2.dnn.readNetFromCaffe('./saved_model/deploy.prototxt.txt', './saved_model/res10_300x300_ssd_iter_140000.caffemodel')
+# net = cv2.dnn.readNetFromCaffe('./saved_model/deploy.prototxt.txt', './saved_model/res10_300x300_ssd_iter_140000.caffemodel')
 
 #instatiate flask app  
 app = Flask(__name__, template_folder='./templates')
@@ -204,7 +183,7 @@ def gen_frames():  # generate frame by frame from camera
 @app.route('/nojjang', methods=['GET','POST']) 
 def tmp():
     value = ' '
-    return render_template('index.html', value = sexy)
+    return render_template('index.html', value = where)
 
 
 @app.route('/')
