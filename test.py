@@ -6,7 +6,7 @@ import numpy as np
 from threading import Thread
 import mediapipe as mp
 import math
-
+import re
 
 global capture,rec_frame, grey, switch, neg, face, rec, out 
 capture=0
@@ -121,5 +121,12 @@ def detect():
 
                 if cv2.waitKey(20) & 0xFF == 27:
                     break
-    camera.release()    
-detect()
+    camera.release()  
+p = re.compile('[0-9]+')
+a = p.findall(str)
+g = []
+index = 0
+for i in range(int(len(a)/2)):
+    g.append([int(a[index]),int(a[index+1])])
+    index += 2
+print(g)
